@@ -22,7 +22,7 @@ Dependencies
 -----
 The R notebook (RandomForest.Rmd) is designed to run using the R statistical programming language. 
 
-You can download and install on your computer by following [**this link**](https://mirrors.nics.utk.edu/cran/) (tested on v4.2.1)
+You can download and install R on your computer by following [**this link**](https://mirrors.nics.utk.edu/cran/) (tested using v4.2.1)
 
 You may find it helpful to work within the [**RStudio**](https://posit.co/download/rstudio-desktop/) integrated development environment.
 
