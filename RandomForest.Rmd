@@ -1,0 +1,138 @@
+---
+title: <h1 align="center"> Random Forest Analysis of Metabolomic Data </h1>
+
+abstract: |
+  This document contains an example of how one might use a supervised machine learning technique for a classification task. We'll use some targeted metabolomic data collected from *Populus trichocarpa* plants and the random forest algorithm to train a classifier. We can then use this model to classify novel samples based on their metabolite profile and identify which metabolites contribute the most to successful classification.
+  
+  The data were collected from plants grown in a common garden. Samples were collected from the leaves, roots, and rhizosphere (i.e., the soil around the roots). A total of 172 metabolites were measured and each value represents the quantile-normalized metabolite abundance in units of log~10~(LC/MS chromatogram peak height).
+  
+  Random forest is an algorithm that builds many decision trees and combines their output. Bootstrap aggregation (or "bagging") is used to train the model. The "random" part of the algorithm refers to the sampling with replacement of observations and selection of features/predictors used to generate training datasets. This method is great for metabolomics data because it handles high-dimensional datasets efficiently, deals with missing data effectively, is robust to outliers, and doesn't assume the data follow any particular distribution.
+  
+  Our goals here are to (1) develop a model for classifying samples as leaves, roots, or rhizosphere and (2) identify which metabolites are the most important features for classification.
+  
+output:
+  html_document: default
+---
+<br>
+
+### Set the working directory and the load required packages.
+```{r message=FALSE, warning=FALSE}
+# This sets the working directory to wherever this script is.
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+
+# Here are some libraries that we'll use.
+if (!require('randomForest')) install.packages('randomForest'); library('randomForest')
+if (!require('caret')) install.packages('caret'); library('caret')
+if (!require('ggplot2')) install.packages('ggplot2'); library('ggplot2')
+```
+<br>
+
+### Import the data.
+```{r}
+df <- read.table("data.tsv", header = T)
+
+# Set sample type (leaves, roots, or rhizosphere) as a factor
+df$Factor <- as.factor(df$Factor)
+```
+<br>
+
+### Set the seed to initialize a random number generator.
+```{r}
+set.seed(8675309)
+```
+<br>
+
+### Impute missing data for the predictors.
+```{r}
+# Impute missing data
+data.imputed <- rfImpute(Factor ~ ., data = df, ntree=1E3, iter=10)
+```
+#### The out-of-bag (OOB) error estimate doesn't decrease after ten iterations suggesting that additional iterations won't improve our estimates. 
+<br>
+
+### Run the algorithm.
+```{r}
+# Use 1E3 decision trees
+# Return the proximity matrix so that samples can be clustered for plotting later
+model <- randomForest(Factor ~ ., data=data.imputed, ntree=1E3, proximity=TRUE)
+
+# Find the number of variables tried at each split
+model$mtry
+```
+#### Notice that the number of variables tried at each split (m~try~) is equal to 13 here. This parameter controls the amount of randomness that occurs when constructing the decision trees. Higher values allow for more features/predictors to be considered. For classification, one reasonable starting value is the square root of the number of features/predictors. With many features, it is often good practice to tune this parameter to avoid overfitting.
+<br>
+
+### Tune the "m~try~" parameter
+```{r}
+# stepFactor is the amount that mtry is inflated/deflated each iteration
+# improve is the minimum improvement to the OOB error needed for the search to continue
+tuneRF(data.imputed[,2:173], data.imputed$Factor, stepFactor = 1.5, improve = 1E-5, ntree = 1E3, plot = F)
+```
+#### The OOB error doesn't change much with different values of m~try~ for this dataset. Our starting value of "13" seems reasonable.
+<br>
+
+### Evaluating model performance.
+#### Plot the OOB error as a function of the number of decision trees.
+```{r, fig.align = 'center'}
+oob.error.data <- data.frame(
+  Trees=rep(1:nrow(model$err.rate), times=4),
+  Factor=rep(c("OOB","Leaves","Rhizosphere","Roots"),
+           each=nrow(model$err.rate)),
+  Error=c(model$err.rate[,"OOB"],
+          model$err.rate[,"Leaves"],
+          model$err.rate[,"Rhizosphere"],
+          model$err.rate[,"Roots"]))
+
+ggplot(data=oob.error.data, aes(x=Trees, y=Error)) +
+  geom_line(aes(color=Factor)) + theme_bw()
+```
+
+#### The OOB error estimates don't improve much after considering a few hundred trees, so our starting value of 1E3 decision trees looks good.
+<br>
+
+### Summarize the model output.
+```{r}
+model
+```
+#### Our OOB error estimate is relatively low (1.92%) indicating that our model does a pretty good job at classifying novel samples. If we look more closely at the confusion matrix, we can see that all of the leaf samples were correctly classified but that four rhizosphere samples was incorrectly classified as a root samples and two root samples were incorrectly classified as rhizosphere samples. This is perhaps not too suprising given that the rhizosphere is the soil immediately surrounding the roots and is influence greatly by plant root exudates.
+<br>
+
+#### Use multi-dimensional scaling to plot the proximity matrix.
+```{r, fig.align = 'center'}
+# Create a distance matrix
+distance.matrix <- dist(1-model$proximity)
+
+mds <- cmdscale(distance.matrix, eig=TRUE, x.ret=TRUE)
+mds.var.per <- round(mds$eig/sum(mds$eig)*100, 1)
+mds.values <- mds$points
+
+mds.data <- data.frame(Sample=rownames(mds.values),
+                       X=mds.values[,1],
+                       Y=mds.values[,2],
+                       Factor=data.imputed$Factor)
+
+ggplot(data=mds.data, aes(x=X, y=Y, label=Sample)) +
+  geom_text(aes(color=Factor)) +
+  theme_bw() +
+  xlab(paste("MDS1 - ", mds.var.per[1], "%", sep="")) +
+  ylab(paste("MDS2 - ", mds.var.per[2], "%", sep="")) +
+  ggtitle("MDS plot using (1 - Random Forest Proximities)")
+```
+
+#### The MDS plot shows good separation between different sample types. However, samples 139 and 178 are root samples but are clustering with the rhizosphere samples - these were some of our misclassified samples. Which other misclassified samples can you find? 
+<br>
+
+### Find the metabolites that are important features for classification.
+```{r, fig.height = 6, fig.width=6}
+varImpPlot(model, sort = T, n.var = 172, labels = rep("",172))
+```
+
+#### This plot shows the importance (MeanDecreaseGini on the x-axis) for each metabolite (dots along the y-axis, names removed for clarity). Some metabolites like those at the top of the graph are very important for classification, while others like those at the bottom of the graph are much less important.
+<br>
+
+#### What are the top 10 most important metabolites for sample classification?
+```{r}
+varImpPlot(model, sort = T, n.var = 10)
+```
+
+#### Many of these top metabolites are nucleic acids and their derivatives.
