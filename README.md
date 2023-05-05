@@ -34,8 +34,7 @@ This workflow is released under a GNU General Public License (v3.0).
 
 Citations
 ---------
-* Kuhn M (2022). caret: Classification and Regression Training.   R package version 6.0-93, <https://CRAN.R-project.org/package=caret>.
-* Liaw A and Wiener M. (2002). Classification and Regression by randomForest. R News 2(3), 18-22.
+* Kuhn M (2022). caret: Classification and Regression Training. R package version 6.0-93, <https://CRAN.R-project.org/package=caret>.
+* Liaw A and Wiener M (2002). Classification and Regression by randomForest. R News 2(3), 18-22.
 * R Core Team (2022). R: A language and environment for statistical computing. R Foundation for Statistical Computing, Vienna, Austria. URL https://www.R-project.org/.
-* Wickham H. ggplot2: Elegant Graphics for Data Analysis. Springer-Verlag New York, 2016.
-
+* Wickham H (2016). ggplot2: Elegant Graphics for Data Analysis. Springer-Verlag, New York, USA.
